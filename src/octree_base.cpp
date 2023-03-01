@@ -12,8 +12,9 @@ typedef CGAL::Polyhedron_3<Kernel> Polyhedron;
 typedef Polyhedron::Facet_iterator Facet_iterator;
 typedef Polyhedron::Vertex_iterator Vertex_iterator;
 typedef Polyhedron::Halfedge_iterator Halfedge_iterator;
+typedef Polyhedron::Vertex_handle Vertex_handle;
 
-typedef Polyhedron::Point_3 Point3;
+typedef Polyhedron::Point_3 Point;
 
 /// @brief Axis-Aligned bounding box
 struct AABB
@@ -23,7 +24,9 @@ struct AABB
 
 struct OctreeNode
 {
-	// TODO...
+	int nb_vertices;
+	std::vector<Vertex_handle> vertices;
+	std::vector<OctreeNode> children;
 };
 
 /// @brief Compute the bounding box of a mesh
@@ -43,7 +46,7 @@ void addOctreeLevel(OctreeNode &node)
 	// TODO...
 }
 
-constexpr int MAX_POINT = 35; // for testing purposes, 
+constexpr int MAX_POINT = 35; // for testing purposes,
 constexpr int MAX_DEPTH = 10; // it would be much better if these values were given to the function where the tree is being constructed.
 
 /// @brief add one vertex to an octree, by following strictly the rules of maximum amount of point in a node, and maximum depth of the tree
@@ -64,21 +67,82 @@ void addVertexToOctree(OctreeNode &root, Polyhedron::Vertex_handle &vert)
 /// i.e. a node may contain more vertices than MAX_POINT if the maximum depth is reached.
 /// @param mesh the mesh of interest
 /// @return an octree node that is the root of the octree for the given mesh
-OctreeNode generateOctree(Polyhedron &mesh/*, max number of point, max depth...*/)
+
+std::vector<Vertex_iterator> getVerticesInBox(Polyhedron &mesh, const Point &boxMin, const Point &boxMax)
 {
-	OctreeNode root{};
-	// TODO...
-	return root;
+	std::vector<Vertex_iterator> verticesInBox;
+
+	for (Vertex_iterator v = mesh.vertices_begin(); v != mesh.vertices_end(); ++v)
+	{
+		if (v->point().x() >= boxMin.x() && v->point().y() >= boxMin.y() && v->point().z() >= boxMin.z() && v->point().x() <= boxMax.x() && v->point().y() <= boxMax.y() && v->point().z() <= boxMax.z())
+		{
+			verticesInBox.push_back(v);
+		}
+	}
+
+	return verticesInBox;
+}
+
+OctreeNode generateOctreeHelper(Polyhedron &mesh, int depth, const Point &min, const Point &max)
+{
+	OctreeNode node{};
+
+	// if the depth is greater than or equal to the max depth, stop subdividing
+	if (depth >= MAX_DEPTH)
+	{
+		node.vertices = getVerticesInBox(mesh, min, max);
+		node.nb_vertices = node.vertices.size();
+		return node;
+	}
+
+	// if the number of vertices in the box is less than or equal to max point, store the box as a leaf node
+	auto vertices = getVerticesInBox(mesh, min, max);
+	if (vertices.size() <= MAX_POINT)
+	{
+		node.vertices = vertices;
+		node.nb_vertices = node.vertices.size();
+		return node;
+	}
+
+	// otherwise, subdivide the box into eight smaller boxes
+	Point midpoint = Point(((min.x() + max.x()) / 2.0), ((min.y() + max.y()) / 2.0), ((min.z() + max.z()) / 2.0));
+
+	node.children.resize(8);
+
+	node.children[0] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), min.y(), min.z()), Point(midpoint.x(), midpoint.y(), midpoint.z()));
+	node.children[1] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), min.y(), min.z()), Point(max.x(), midpoint.y(), midpoint.z()));
+	node.children[2] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), midpoint.y(), min.z()), Point(midpoint.x(), max.y(), midpoint.z()));
+	node.children[3] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), midpoint.y(), min.z()), Point(max.x(), max.y(), midpoint.z()));
+	node.children[4] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), min.y(), midpoint.z()), Point(midpoint.x(), midpoint.y(), max.z()));
+	node.children[5] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), min.y(), midpoint.z()), Point(max.x(), midpoint.y(), max.z()));
+	node.children[6] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), midpoint.y(), midpoint.z()), Point(midpoint.x(), max.y(), max.z()));
+	node.children[7] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), midpoint.y(), midpoint.z()), Point(max.x(), max.y(), max.z()));
+
+	return node;
+}
+
+OctreeNode generateOctree(Polyhedron &mesh /*, max number of point, max depth...*/)
+{
+	// start by defining the bounding box of the mesh
+	Point min(std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
+	Point max(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
+
+	for (auto v = mesh.vertices_begin(); v != mesh.vertices_end(); ++v)
+	{
+		min = Point(std::min(min.x(), v->point().x()), std::min(min.y(), v->point().y()), std::min(min.z(), v->point().z()));
+		max = Point(std::max(max.x(), v->point().x()), std::max(max.y(), v->point().y()), std::max(max.z(), v->point().z()));
+	}
+
+	return generateOctreeHelper(mesh, 0, min, max);
 }
 
 /// @brief find a specific vertex inside an octree (using a dichotomy algorithm)
 /// @param vh the vertex handle to look for
 /// @return the address of the node (not the prettiest way, feel free to handle it differently)
-OctreeNode* findVertexInOctree(OctreeNode& root, Polyhedron::Vertex_const_handle &vh)
+OctreeNode *findVertexInOctree(OctreeNode &root, Polyhedron::Vertex_const_handle &vh)
 {
 	// TODO....
 	return &root;
-
 }
 
 /// @brief (optional) Utility function that takes an octree and apply a function (or more useful, a lambda !)
@@ -86,7 +150,7 @@ OctreeNode* findVertexInOctree(OctreeNode& root, Polyhedron::Vertex_const_handle
 /// Can be useful to avoid declaring a new recursive function each time...
 /// @param root the root node of the Octree of interest
 /// @param func a lambda supposed to do something on a given Octree node.
-void browseNodes(const OctreeNode &root, std::function<void(const OctreeNode&)> func)
+void browseNodes(const OctreeNode &root, std::function<void(const OctreeNode &)> func)
 {
 	// if there are no vertices in the node we do nothing
 
@@ -96,9 +160,10 @@ void browseNodes(const OctreeNode &root, std::function<void(const OctreeNode&)> 
 	// browseNodes(/*TODO*/, func);
 }
 
-void extractMeshFromOctree(const OctreeNode &root, const Polyhedron& mesh){
+void extractMeshFromOctree(const OctreeNode &root, const Polyhedron &mesh)
+{
 
-	std::vector<Point3> vertices;
+	std::vector<Point> vertices;
 	std::vector<std::vector<int>> faces;
 
 	// TODO: fill "vertices" and "faces" by going through the octree
@@ -113,12 +178,12 @@ void extractMeshFromOctree(const OctreeNode &root, const Polyhedron& mesh){
 	for (const auto &f : faces)
 	{
 		out << f.size() << " ";
-		for(auto fi : f){
+		for (auto fi : f)
+		{
 			out << fi << " ";
 		}
 		out << std::endl;
 	}
-
 }
 
 int main(int argc, char *argv[])
@@ -161,7 +226,7 @@ int main(int argc, char *argv[])
 
 	const auto octree = generateOctree(mesh);
 
-	extractMeshFromOctree(octree,mesh);
+	extractMeshFromOctree(octree, mesh);
 
 	return 0;
 }
