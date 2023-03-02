@@ -9,23 +9,29 @@
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel Kernel;
 typedef CGAL::Polyhedron_3<Kernel> Polyhedron;
-typedef Polyhedron::Facet_iterator Facet_iterator;
-typedef Polyhedron::Vertex_iterator Vertex_iterator;
-typedef Polyhedron::Halfedge_iterator Halfedge_iterator;
-typedef Polyhedron::Vertex_handle Vertex_handle;
+typedef Polyhedron::Facet_const_iterator Facet_iterator;
+typedef Polyhedron::Vertex_const_iterator Vertex_iterator;
+typedef Polyhedron::Halfedge_const_iterator Halfedge_iterator;
+typedef Polyhedron::Halfedge_around_facet_const_circulator Halfedge_facet_circulator;
+
+// typedef Polyhedron::Vertex_handle Vertex_handle;
 
 typedef Polyhedron::Point_3 Point;
 
 /// @brief Axis-Aligned bounding box
 struct AABB
 {
+	Point boxMin;
+	Point boxMax;
+
 	// TODO...
 };
 
 struct OctreeNode
 {
 	int nb_vertices;
-	std::vector<Vertex_handle> vertices;
+	int profondeur;
+	std::vector<Vertex_iterator> vertices;
 	std::vector<OctreeNode> children;
 };
 
@@ -47,7 +53,7 @@ void addOctreeLevel(OctreeNode &node)
 }
 
 constexpr int MAX_POINT = 35; // for testing purposes,
-constexpr int MAX_DEPTH = 10; // it would be much better if these values were given to the function where the tree is being constructed.
+constexpr int MAX_DEPTH = 2;  // it would be much better if these values were given to the function where the tree is being constructed.
 
 /// @brief add one vertex to an octree, by following strictly the rules of maximum amount of point in a node, and maximum depth of the tree
 /// @param root the root node of the tree
@@ -68,7 +74,7 @@ void addVertexToOctree(OctreeNode &root, Polyhedron::Vertex_handle &vert)
 /// @param mesh the mesh of interest
 /// @return an octree node that is the root of the octree for the given mesh
 
-std::vector<Vertex_iterator> getVerticesInBox(Polyhedron &mesh, const Point &boxMin, const Point &boxMax)
+std::vector<Vertex_iterator> getVerticesInBox(const Polyhedron &mesh, const Point &boxMin, const Point &boxMax)
 {
 	std::vector<Vertex_iterator> verticesInBox;
 
@@ -83,9 +89,10 @@ std::vector<Vertex_iterator> getVerticesInBox(Polyhedron &mesh, const Point &box
 	return verticesInBox;
 }
 
-OctreeNode generateOctreeHelper(Polyhedron &mesh, int depth, const Point &min, const Point &max)
+OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &min, const Point &max)
 {
 	OctreeNode node{};
+	node.profondeur = depth;
 
 	// if the depth is greater than or equal to the max depth, stop subdividing
 	if (depth >= MAX_DEPTH)
@@ -121,7 +128,7 @@ OctreeNode generateOctreeHelper(Polyhedron &mesh, int depth, const Point &min, c
 	return node;
 }
 
-OctreeNode generateOctree(Polyhedron &mesh /*, max number of point, max depth...*/)
+OctreeNode generateOctree(const Polyhedron &mesh /*, max number of point, max depth...*/)
 {
 	// start by defining the bounding box of the mesh
 	Point min(std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
@@ -141,8 +148,31 @@ OctreeNode generateOctree(Polyhedron &mesh /*, max number of point, max depth...
 /// @return the address of the node (not the prettiest way, feel free to handle it differently)
 OctreeNode *findVertexInOctree(OctreeNode &root, Polyhedron::Vertex_const_handle &vh)
 {
-	// TODO....
-	return &root;
+	/* // Si le nœud courant ne contient pas la boîte englobante du sommet, il n'y a pas de point
+	 // correspondant dans cet octree, on retourne donc nullptr
+	 vh->point
+	 if (!root.bounding_box.has_on_bounded_side(vh->point())) {
+		 return nullptr;
+	 }
+
+	 // Si le nœud courant contient le sommet, on le retourne
+	 if (root.vertices.  find(vh) != root.points.end()) {
+		 return &root;
+	 }
+
+	 // Si le nœud courant ne contient pas le sommet, on recherche récursivement
+	 // dans les nœuds enfants qui contiennent la boîte englobante du sommet
+	 for (OctreeNode &child : root.children) {
+		 if (child.bounding_box.has_on_bounded_side(vh->point())) {
+			 OctreeNode *result = findVertexInOctree(child, vh);
+			 if (result != nullptr) {
+				 return result;
+			 }
+		 }
+	 }
+
+	 // Si le sommet n'a pas été trouvé dans l'octree, on retourne nullptr
+	 return nullptr;*/
 }
 
 /// @brief (optional) Utility function that takes an octree and apply a function (or more useful, a lambda !)
@@ -186,6 +216,46 @@ void extractMeshFromOctree(const OctreeNode &root, const Polyhedron &mesh)
 	}
 }
 
+void writeOctree(const OctreeNode &tree, std::ofstream &file, int i)
+{
+	file << " { \"Profondeur \" : " << tree.profondeur << "," << std::endl;
+	file << "  \"vertex \" : " << tree.nb_vertices << "," << std::endl;
+	file << "  \"i \" : " << i << "," << std::endl;
+	file << "  \"enfant \" : [ " << std::endl;
+
+	if (tree.children.empty() == 0)
+		i = 0;
+
+	for (auto &t : tree.children)
+	{
+
+		writeOctree(t, file, i);
+		if (i >= 7)
+		{
+			i = 0;
+		}
+		else
+		{
+			i++;
+		}
+	}
+
+	char *fin;
+	if (i >= 7)
+	{
+		fin = "}";
+	}
+	else
+	{
+		fin = "},";
+	}
+	file << "]" << std::endl;
+	file << fin << std::endl;
+		//file << "  \"i \" : " << i << "," << std::endl;
+
+
+}
+
 int main(int argc, char *argv[])
 {
 	if (argc < 2)
@@ -227,6 +297,16 @@ int main(int argc, char *argv[])
 	const auto octree = generateOctree(mesh);
 
 	extractMeshFromOctree(octree, mesh);
+
+	std::ofstream file;
+	file.open("test.json");
+	file << "{" << std::endl;
+	file << "\"meshName\": \" " << argv[1] << "\",\"tree\": [ " << std::endl;
+	int i = 0;
+	writeOctree(octree, file, i);
+	file << "]}" << std::endl;
+
+	file.close();
 
 	return 0;
 }
