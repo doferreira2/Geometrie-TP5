@@ -196,12 +196,19 @@ OctreeNode *findVertexInOctree(OctreeNode &root, Polyhedron::Vertex_const_handle
 /// Can be useful to avoid declaring a new recursive function each time...
 /// @param root the root node of the Octree of interest
 /// @param func a lambda supposed to do something on a given Octree node.
-void browseNodes(const OctreeNode &root, std::function<void(const OctreeNode &)> func)
+void browseNodes(OctreeNode &root, std::function<void(const OctreeNode &)> func)
 {
-	// if(root.nb_vertices != 0 )
-	// {
-		
-	// }
+	if(root.nb_vertices != 0 )
+	{
+		func(root);
+		return;
+	}
+
+	for (OctreeNode &child : root.children)
+	{
+		browseNodes(child, func);
+	}
+
 	// if there are no vertices in the node we do nothing
 
 	// if the nodes contains vertices, then "func" is called on the node
