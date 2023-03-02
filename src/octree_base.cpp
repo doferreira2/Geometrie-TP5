@@ -230,30 +230,12 @@ void writeOctree(const OctreeNode &tree, std::ofstream &file, int i)
 	{
 
 		writeOctree(t, file, i);
-		if (i >= 7)
-		{
-			i = 0;
-		}
-		else
-		{
-			i++;
-		}
+		i = (i >= 7 ? 0 : i + 1);
 	}
 
-	char *fin;
-	if (i >= 7)
-	{
-		fin = "}";
-	}
-	else
-	{
-		fin = "},";
-	}
 	file << "]" << std::endl;
-	file << fin << std::endl;
-		//file << "  \"i \" : " << i << "," << std::endl;
-
-
+	file << (i >= 7 ? "}" : "},") << std::endl;
+	// file << "  \"i \" : " << i << "," << std::endl;
 }
 
 int main(int argc, char *argv[])
