@@ -26,11 +26,11 @@ typedef struct s_color
 } color;
 
 color colorPalette[5] = {
-	{1.0, 0.0, 0.0}, // red
-	{1.0, 0.5, 0.0}, // orange
-	{1.0, 1.0, 0.0}, // yellow
-	{0.0, 1.0, 0.0}, // green
-	{0.0, 0.0, 1.0}	 // blue
+	{255, 0.0, 0.0}, // red
+	{255, 128, 0.0}, // orange
+	{255, 255, 0.0}, // yellow
+	{0.0, 255, 0.0}, // green
+	{0.0, 0.0, 255}	 // blue
 };
 
 /// @brief Axis-Aligned bounding box
@@ -109,6 +109,9 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 {
 	OctreeNode node{};
 	node.profondeur = depth;
+	node.bbox.boxMax = max;
+	node.bbox.boxMin = min;
+
 
 	// if the depth is greater than or equal to the max depth, stop subdividing
 	if (depth >= MAX_DEPTH)
@@ -159,25 +162,29 @@ OctreeNode generateOctree(const Polyhedron &mesh /*, max number of point, max de
 	return generateOctreeHelper(mesh, 0, min, max);
 }
 
-bool VertexInBBbox(AABB &box, Polyhedron::Vertex_const_handle &v)
+bool VertexInBBbox(AABB &box, Vertex_iterator &v)
 {
 
 	if (v->point().x() >= box.boxMin.x() && v->point().y() >= box.boxMin.y() && v->point().z() >= box.boxMin.z() && v->point().x() <= box.boxMax.x() && v->point().y() <= box.boxMax.y() && v->point().z() <= box.boxMax.z())
 	{
+		
 		return true;
 	}
-	return false;
+	else
+	{
+		return false;
+	}
 }
 
 /// @brief find a specific vertex inside an octree (using a dichotomy algorithm)
 /// @param vh the vertex handle to look for
 /// @return the address of the node (not the prettiest way, feel free to handle it differently)
-OctreeNode *findVertexInOctree(OctreeNode &root, Polyhedron::Vertex_const_handle &vh)
+OctreeNode *findVertexInOctree(OctreeNode &root, Vertex_iterator &vh)
 {
 
 	// Si le nœud courant ne contient pas la boîte englobante du sommet, il n'y a pas de point
 	// correspondant dans cet octree, on retourne donc nullptr
-	if (VertexInBBbox(root.bbox, vh))
+	if (!VertexInBBbox(root.bbox, vh))
 	{
 		return nullptr;
 	}
@@ -258,7 +265,7 @@ void extractMeshFromOctree(const OctreeNode &root, const Polyhedron &mesh)
 	}
 }
 
-void writeOctree(const OctreeNode &tree, std::ofstream &file, int i)
+void writeJSONfromOctree(const OctreeNode &tree, std::ofstream &file, int i)
 {
 	file << " { \"Profondeur \" : " << tree.profondeur << "," << std::endl;
 	file << "  \"vertex \" : " << tree.nb_vertices << "," << std::endl;
@@ -271,7 +278,7 @@ void writeOctree(const OctreeNode &tree, std::ofstream &file, int i)
 	for (auto &t : tree.children)
 	{
 
-		writeOctree(t, file, i);
+		writeJSONfromOctree(t, file, i);
 		i = (i >= 7 ? 0 : i + 1);
 	}
 
@@ -280,7 +287,7 @@ void writeOctree(const OctreeNode &tree, std::ofstream &file, int i)
 	// file << "  \"i \" : " << i << "," << std::endl;
 }
 
-void writeOFFfromOctree(const Polyhedron &mesh, OctreeNode &tree, std::string filePath)
+void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::string filePath)
 {
 	std::ofstream in_myfile;
 	in_myfile.open(filePath);
@@ -295,16 +302,19 @@ void writeOFFfromOctree(const Polyhedron &mesh, OctreeNode &tree, std::string fi
 	for (Vertex_iterator v = mesh.vertices_begin(); v != mesh.vertices_end(); ++v)
 	{
 		in_myfile << v->point();
-		
-		auto noeud = findVertexInOctree(tree, v);
-		
-		std::cout << "prof : " << noeud->profondeur << std::endl;
 
-		auto redValue = colorPalette[noeud->profondeur].R;
-		auto greenValue = colorPalette[noeud->profondeur].V;
-		auto blueValue = colorPalette[noeud->profondeur].B;
+		auto *noeud = findVertexInOctree(tree, v);
 
-		in_myfile << " " << redValue << " " << greenValue << " " << blueValue;
+		if (noeud != nullptr)
+		{
+			std::cout << "prof : " << noeud->profondeur << std::endl;
+
+			auto redValue = colorPalette[noeud->profondeur].R;
+			auto greenValue = colorPalette[noeud->profondeur].V;
+			auto blueValue = colorPalette[noeud->profondeur].B;
+
+			in_myfile << " " << redValue << " " << greenValue << " " << blueValue;
+		}
 		in_myfile << std::endl;
 	}
 
@@ -332,6 +342,9 @@ void writeOFFfromOctree(const Polyhedron &mesh, OctreeNode &tree, std::string fi
 
 	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
 }
+
+
+
 
 // TC : jr sjui dorian, je mange des cartes arduinis au petit dej, maim miam les pcb vive l'eltricté, paul pinault le boss, je veux lui faire des choses
 
@@ -377,14 +390,14 @@ int main(int argc, char *argv[])
 
 	// extractMeshFromOctree(octree, mesh);
 
-	writeOFFfromOctree(mesh, octree, "test.off");
+	writeOFFfromOctree(octree, "test.off");
 
 	std::ofstream file;
 	file.open("test.json");
 	file << "{" << std::endl;
 	file << "\"meshName\": \" " << argv[1] << "\",\"tree\": [ " << std::endl;
 	int i = 0;
-	writeOctree(octree, file, i);
+	writeJSONfromOctree(octree, file, i);
 	file << "]}" << std::endl;
 
 	file.close();
