@@ -343,8 +343,71 @@ void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::stri
 	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
 }
 
+void ComputPointOctree(std::vector<Point> &vect, OctreeNode &tree, std::ofstream &file)
+{
 
+	if (tree.nb_vertices != 0)
+	{
+		vect.push_back(Point(tree.bbox.boxMax.x(), tree.bbox.boxMax.y(), tree.bbox.boxMax.z()));
+		vect.push_back(Point(tree.bbox.boxMax.x(), tree.bbox.boxMax.y(), tree.bbox.boxMin.z()));
+		vect.push_back(Point(tree.bbox.boxMax.x(), tree.bbox.boxMin.y(), tree.bbox.boxMax.z()));
+		vect.push_back(Point(tree.bbox.boxMax.x(), tree.bbox.boxMin.y(), tree.bbox.boxMin.z()));
+		vect.push_back(Point(tree.bbox.boxMin.x(), tree.bbox.boxMax.y(), tree.bbox.boxMax.z()));
+		vect.push_back(Point(tree.bbox.boxMin.x(), tree.bbox.boxMax.y(), tree.bbox.boxMin.z()));
+		vect.push_back(Point(tree.bbox.boxMin.x(), tree.bbox.boxMin.y(), tree.bbox.boxMax.z()));
+		vect.push_back(Point(tree.bbox.boxMin.x(), tree.bbox.boxMin.y(), tree.bbox.boxMin.z()));
+	}
+	else
+	{
+		for (OctreeNode &child : tree.children)
+		{
+			ComputPointOctree(vect, child, file);
+		}
+	}
+}
 
+void writeFaceHelper(int nbcube, std::ofstream &file)
+{
+	for (int i = 0; i < nbcube; i++)
+	{
+		file << '4' << ' ' << 0 + (8 * i) << ' ' << 4 + (8 * i) << ' ' << 6 + (8 * i) << ' ' << 2 + (8 * i) << std::endl;
+		file << '4' << ' ' << 3 + (8 * i) << ' ' << 2 + (8 * i) << ' ' << 6 + (8 * i) << ' ' << 7 + (8 * i) << std::endl;
+		file << '4' << ' ' << 7 + (8 * i) << ' ' << 6 + (8 * i) << ' ' << 4 + (8 * i) << ' ' << 5 + (8 * i) << std::endl;
+		file << '4' << ' ' << 5 + (8 * i) << ' ' << 1 + (8 * i) << ' ' << 3 + (8 * i) << ' ' << 7 + (8 * i) << std::endl;
+		file << '4' << ' ' << 1 + (8 * i) << ' ' << 0 + (8 * i) << ' ' << 2 + (8 * i) << ' ' << 3 + (8 * i) << std::endl;
+		file << '4' << ' ' << 5 + (8 * i) << ' ' << 4 + (8 * i) << ' ' << 0 + (8 * i) << ' ' << 1 + (8 * i) << std::endl;
+	}
+}
+
+void writeOFFfromOctree(OctreeNode &tree, std::string filePath)
+{
+	std::ofstream in_myfile;
+	in_myfile.open(filePath);
+
+	CGAL::set_ascii_mode(in_myfile);
+
+	std::vector<Point> v_point;
+
+	std::cout << "init : " << v_point.size() << std::endl;
+
+	ComputPointOctree(v_point, tree, in_myfile);
+
+	std::cout << v_point.size() << std::endl;
+
+	in_myfile << "OFF" << std::endl // "COFF" makes the file support color informations
+			  << v_point.size() << ' '
+			  << (6 * (v_point.size() / 8)) << " 0" << std::endl;
+	// nb of vertices, faces and edges (the latter is optional, thus 0)
+
+	std::copy(v_point.begin(), v_point.end(),
+			  std::ostream_iterator<Kernel::Point_3>(in_myfile, "\n"));
+
+	writeFaceHelper((v_point.size() / 8), in_myfile);
+
+	in_myfile.close();
+
+	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
+}
 
 // TC : jr sjui dorian, je mange des cartes arduinis au petit dej, maim miam les pcb vive l'eltricté, paul pinault le boss, je veux lui faire des choses
 
