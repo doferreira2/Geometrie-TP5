@@ -18,6 +18,21 @@ typedef Polyhedron::Halfedge_around_facet_const_circulator Halfedge_facet_circul
 
 typedef Polyhedron::Point_3 Point;
 
+typedef struct s_color
+{
+	float R;
+	float V;
+	float B;
+} color;
+
+color colorPalette[5] = {
+	{1.0, 0.0, 0.0}, // red
+	{1.0, 0.5, 0.0}, // orange
+	{1.0, 1.0, 0.0}, // yellow
+	{0.0, 1.0, 0.0}, // green
+	{0.0, 0.0, 1.0}	 // blue
+};
+
 /// @brief Axis-Aligned bounding box
 struct AABB
 {
@@ -54,7 +69,7 @@ void addOctreeLevel(OctreeNode &node)
 }
 
 constexpr int MAX_POINT = 35; // for testing purposes,
-constexpr int MAX_DEPTH = 2;  // it would be much better if these values were given to the function where the tree is being constructed.
+constexpr int MAX_DEPTH = 5;  // it would be much better if these values were given to the function where the tree is being constructed.
 
 /// @brief add one vertex to an octree, by following strictly the rules of maximum amount of point in a node, and maximum depth of the tree
 /// @param root the root node of the tree
@@ -168,7 +183,7 @@ OctreeNode *findVertexInOctree(OctreeNode &root, Polyhedron::Vertex_const_handle
 	}
 
 	// Si le nœud courant contient le sommet, on le retourne
-	if ( std::find(root.vertices.begin(), root.vertices.end(), vh) != root.vertices.end()) //root.vertices. bo find(vh) != root.points.end())
+	if (std::find(root.vertices.begin(), root.vertices.end(), vh) != root.vertices.end()) // root.vertices. bo find(vh) != root.points.end())
 	{
 		return &root;
 	}
@@ -198,7 +213,7 @@ OctreeNode *findVertexInOctree(OctreeNode &root, Polyhedron::Vertex_const_handle
 /// @param func a lambda supposed to do something on a given Octree node.
 void browseNodes(OctreeNode &root, std::function<void(const OctreeNode &)> func)
 {
-	if(root.nb_vertices != 0 )
+	if (root.nb_vertices != 0)
 	{
 		func(root);
 		return;
@@ -265,6 +280,61 @@ void writeOctree(const OctreeNode &tree, std::ofstream &file, int i)
 	// file << "  \"i \" : " << i << "," << std::endl;
 }
 
+void writeOFFfromOctree(const Polyhedron &mesh, OctreeNode &tree, std::string filePath)
+{
+	std::ofstream in_myfile;
+	in_myfile.open(filePath);
+
+	CGAL::set_ascii_mode(in_myfile);
+
+	in_myfile << "COFF" << std::endl // "COFF" makes the file support color informations
+			  << mesh.size_of_vertices() << ' '
+			  << mesh.size_of_facets() << " 0" << std::endl;
+	// nb of vertices, faces and edges (the latter is optional, thus 0)
+
+	for (Vertex_iterator v = mesh.vertices_begin(); v != mesh.vertices_end(); ++v)
+	{
+		in_myfile << v->point();
+		
+		auto noeud = findVertexInOctree(tree, v);
+		
+		std::cout << "prof : " << noeud->profondeur << std::endl;
+
+		auto redValue = colorPalette[noeud->profondeur].R;
+		auto greenValue = colorPalette[noeud->profondeur].V;
+		auto blueValue = colorPalette[noeud->profondeur].B;
+
+		in_myfile << " " << redValue << " " << greenValue << " " << blueValue;
+		in_myfile << std::endl;
+	}
+
+	// std::copy(mesh.points_begin(), mesh.points_end(),std::ostream_iterator<Kernel::Point_3>(in_myfile, "\n"));
+
+	for (Facet_iterator i = mesh.facets_begin(); i != mesh.facets_end(); ++i)
+	{
+		Halfedge_facet_circulator j = i->facet_begin();
+
+		CGAL_assertion(CGAL::circulator_size(j) >= 3);
+
+		in_myfile << CGAL::circulator_size(j) << ' ';
+		do
+		{
+			in_myfile << ' ' << std::distance(mesh.vertices_begin(), j->vertex());
+
+		} while (++j != i->facet_begin());
+
+		in_myfile << std::setprecision(5) << std::fixed; // set the format of floats to X.XXXXX
+
+		in_myfile << std::endl;
+	}
+
+	in_myfile.close();
+
+	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
+}
+
+// TC : jr sjui dorian, je mange des cartes arduinis au petit dej, maim miam les pcb vive l'eltricté, paul pinault le boss, je veux lui faire des choses
+
 int main(int argc, char *argv[])
 {
 	if (argc < 2)
@@ -303,9 +373,11 @@ int main(int argc, char *argv[])
 	}
 	std::cout << "Nombre de faces: " << nbFaces << std::endl;
 
-	const auto octree = generateOctree(mesh);
+	auto octree = generateOctree(mesh);
 
-	extractMeshFromOctree(octree, mesh);
+	// extractMeshFromOctree(octree, mesh);
+
+	writeOFFfromOctree(mesh, octree, "test.off");
 
 	std::ofstream file;
 	file.open("test.json");
