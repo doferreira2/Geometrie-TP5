@@ -26,13 +26,13 @@ typedef struct s_color
 } color;
 
 color colorPalette[8] = {
-	{0, 0, 0},
-	{0, 0, 255},
-	{0, 255, 0},
-	{0, 255, 255},
-	{255, 0, 0},
-	{255, 0, 255},
-	{255, 255, 0},
+	{0.0, 0.0, 0.0},
+	{0.0, 0.0, 255},
+	{0.0, 255, 0.0},
+	{0.0, 255, 255},
+	{255, 0.0, 0.0},
+	{255, 0.0, 255},
+	{255, 255, 0.0},
 	{255, 255, 255},
 };
 
@@ -55,15 +55,6 @@ struct OctreeNode
 	std::vector<OctreeNode> children;
 };
 
-/// @brief Compute the bounding box of a mesh
-/// @param mesh the mesh of interest
-/// @return its bounding box
-AABB computeBB(const Polyhedron &mesh)
-{
-	// TODO...
-	return AABB{};
-}
-
 /// @brief add a level to the given parent Octree node, by creating 8 children with 8 bounding box,
 /// sliced in the middle of the parent node
 /// @param node the octree node to which 8 children will be added
@@ -82,17 +73,6 @@ void addVertexToOctree(OctreeNode &root, Polyhedron::Vertex_handle &vert)
 {
 	// TODO, this function can be recursive
 }
-
-/// @brief A function to generate an octree of the vertices of a mesh,
-/// Each vertex will be stored in a node of the octree.
-/// the octree shall follow two rules:
-///    1- each node shall only contain MAX_POINT vertices
-///    2- the depth of tree shall not exceed MAX_DEPTH
-///	Remark: the depth of the root is 0
-///	Remark: rule 2 wins over rule 1.
-/// i.e. a node may contain more vertices than MAX_POINT if the maximum depth is reached.
-/// @param mesh the mesh of interest
-/// @return an octree node that is the root of the octree for the given mesh
 
 std::vector<Vertex_iterator> getVerticesInBox(const Polyhedron &mesh, const Point &boxMin, const Point &boxMax)
 {
@@ -152,6 +132,16 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 	return node;
 }
 
+/// @brief A function to generate an octree of the vertices of a mesh,
+/// Each vertex will be stored in a node of the octree.
+/// the octree shall follow two rules:
+///    1- each node shall only contain MAX_POINT vertices
+///    2- the depth of tree shall not exceed MAX_DEPTH
+///	Remark: the depth of the root is 0
+///	Remark: rule 2 wins over rule 1.
+/// i.e. a node may contain more vertices than MAX_POINT if the maximum depth is reached.
+/// @param mesh the mesh of interest
+/// @return an octree node that is the root of the octree for the given mesh
 OctreeNode generateOctree(const Polyhedron &mesh /*, max number of point, max depth...*/)
 {
 	// start by defining the bounding box of the mesh
@@ -167,18 +157,13 @@ OctreeNode generateOctree(const Polyhedron &mesh /*, max number of point, max de
 	return generateOctreeHelper(mesh, 0, min, max, 0);
 }
 
-bool VertexInBBbox(AABB &box, Vertex_iterator &v)
+bool VerticeInBox(AABB &box, Vertex_iterator &v)
 {
-
 	if (v->point().x() >= box.boxMin.x() && v->point().y() >= box.boxMin.y() && v->point().z() >= box.boxMin.z() && v->point().x() <= box.boxMax.x() && v->point().y() <= box.boxMax.y() && v->point().z() <= box.boxMax.z())
 	{
-
 		return true;
 	}
-	else
-	{
-		return false;
-	}
+	return false;
 }
 
 /// @brief find a specific vertex inside an octree (using a dichotomy algorithm)
@@ -189,7 +174,7 @@ OctreeNode *findVertexInOctree(OctreeNode &root, Vertex_iterator &vh)
 
 	// Si le nœud courant ne contient pas la boîte englobante du sommet, il n'y a pas de point
 	// correspondant dans cet octree, on retourne donc nullptr
-	if (!VertexInBBbox(root.bbox, vh))
+	if (!VerticeInBox(root.bbox, vh))
 	{
 		return nullptr;
 	}
@@ -204,7 +189,7 @@ OctreeNode *findVertexInOctree(OctreeNode &root, Vertex_iterator &vh)
 	// dans les nœuds enfants qui contiennent la boîte englobante du sommet
 	for (OctreeNode &child : root.children)
 	{
-		if (VertexInBBbox(child.bbox, vh))
+		if (VerticeInBox(child.bbox, vh))
 		{
 			OctreeNode *result = findVertexInOctree(child, vh);
 			if (result != nullptr)
@@ -225,11 +210,13 @@ OctreeNode *findVertexInOctree(OctreeNode &root, Vertex_iterator &vh)
 /// @param func a lambda supposed to do something on a given Octree node.
 void browseNodes(OctreeNode &root, std::function<void(const OctreeNode &)> func)
 {
+	// if the nodes contains vertices, then "func" is called on the node
 	if (root.nb_vertices != 0)
 	{
 		func(root);
 		return;
 	}
+	// go through all the children of the current node and calls browseNodes recursively.
 
 	for (OctreeNode &child : root.children)
 	{
@@ -237,11 +224,6 @@ void browseNodes(OctreeNode &root, std::function<void(const OctreeNode &)> func)
 	}
 
 	// if there are no vertices in the node we do nothing
-
-	// if the nodes contains vertices, then "func" is called on the node
-
-	// go through all the children of the current node and calls browseNodes recursively.
-	// browseNodes(/*TODO*/, func);
 }
 
 void extractMeshFromOctree(const OctreeNode &root, const Polyhedron &mesh)
@@ -283,7 +265,6 @@ void writeJSONfromOctree(const OctreeNode &tree, std::ofstream &file)
 
 	for (auto &t : tree.children)
 	{
-
 		writeJSONfromOctree(t, file);
 		// i = (i >= 7 ? 0 : i + 1);
 	}
@@ -313,11 +294,9 @@ void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::stri
 
 		if (noeud != nullptr)
 		{
-			std::cout << "prof : " << noeud->profondeur << std::endl;
-
-			auto redValue = colorPalette[noeud->nieme].R / ((MAX_DEPTH +1) - noeud->profondeur);
+			auto redValue = colorPalette[noeud->nieme].R / ((MAX_DEPTH + 1) - noeud->profondeur);
 			auto greenValue = colorPalette[noeud->nieme].V / ((MAX_DEPTH + 1) - noeud->profondeur);
-			auto blueValue = colorPalette[noeud->nieme].B / ((MAX_DEPTH+ 1) - noeud->profondeur);
+			auto blueValue = colorPalette[noeud->nieme].B / ((MAX_DEPTH + 1) - noeud->profondeur);
 
 			in_myfile << " " << redValue << " " << greenValue << " " << blueValue;
 		}
