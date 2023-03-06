@@ -155,8 +155,8 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 OctreeNode generateOctree(const Polyhedron &mesh /*, max number of point, max depth...*/)
 {
 	// start by defining the bounding box of the mesh
-	Point max(std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
-	Point min(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
+	Point min(std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
+	Point max(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
 
 	for (auto v = mesh.vertices_begin(); v != mesh.vertices_end(); ++v)
 	{
@@ -290,7 +290,7 @@ void writeJSONfromOctree(const OctreeNode &tree, std::ofstream &file)
 
 	file << "]" << std::endl;
 	file << (i >= 7 ? "}" : "},") << std::endl;
-	//file << "  \"i \" : " << i << "," << std::endl;
+	// file << "  \"i \" : " << i << "," << std::endl;
 }
 
 void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::string filePath)
@@ -315,9 +315,9 @@ void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::stri
 		{
 			std::cout << "prof : " << noeud->profondeur << std::endl;
 
-			auto redValue = colorPalette[noeud->profondeur].R;
-			auto greenValue = colorPalette[noeud->profondeur].V;
-			auto blueValue = colorPalette[noeud->profondeur].B;
+			auto redValue = colorPalette[noeud->nieme].R / ((MAX_DEPTH +1) - noeud->profondeur);
+			auto greenValue = colorPalette[noeud->nieme].V / ((MAX_DEPTH + 1) - noeud->profondeur);
+			auto blueValue = colorPalette[noeud->nieme].B / ((MAX_DEPTH+ 1) - noeud->profondeur);
 
 			in_myfile << " " << redValue << " " << greenValue << " " << blueValue;
 		}
@@ -458,7 +458,7 @@ int main(int argc, char *argv[])
 	auto octree = generateOctree(mesh);
 
 	// extractMeshFromOctree(octree, mesh);
-
+	writeCOFFfromMeshOctree(mesh, octree, "colorMesh.off");
 	writeOFFfromOctree(octree, "Octree.off");
 
 	std::ofstream file;
