@@ -25,12 +25,15 @@ typedef struct s_color
 	float B;
 } color;
 
-color colorPalette[5] = {
-	{255, 0.0, 0.0}, // red
-	{255, 128, 0.0}, // orange
-	{255, 255, 0.0}, // yellow
-	{0.0, 255, 0.0}, // green
-	{0.0, 0.0, 255}	 // blue
+color colorPalette[8] = {
+	{0, 0, 0},
+	{0, 0, 255},
+	{0, 255, 0},
+	{0, 255, 255},
+	{255, 0, 0},
+	{255, 0, 255},
+	{255, 255, 0},
+	{255, 255, 255},
 };
 
 /// @brief Axis-Aligned bounding box
@@ -46,6 +49,7 @@ struct OctreeNode
 {
 	int nb_vertices;
 	int profondeur;
+	int nieme;
 	AABB bbox;
 	std::vector<Vertex_iterator> vertices;
 	std::vector<OctreeNode> children;
@@ -105,13 +109,14 @@ std::vector<Vertex_iterator> getVerticesInBox(const Polyhedron &mesh, const Poin
 	return verticesInBox;
 }
 
-OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &min, const Point &max)
+OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &min, const Point &max, int i)
 {
+
 	OctreeNode node{};
 	node.profondeur = depth;
 	node.bbox.boxMax = max;
 	node.bbox.boxMin = min;
-
+	node.nieme = i;
 
 	// if the depth is greater than or equal to the max depth, stop subdividing
 	if (depth >= MAX_DEPTH)
@@ -135,14 +140,14 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 
 	node.children.resize(8);
 
-	node.children[0] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), min.y(), min.z()), Point(midpoint.x(), midpoint.y(), midpoint.z()));
-	node.children[1] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), min.y(), min.z()), Point(max.x(), midpoint.y(), midpoint.z()));
-	node.children[2] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), midpoint.y(), min.z()), Point(midpoint.x(), max.y(), midpoint.z()));
-	node.children[3] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), midpoint.y(), min.z()), Point(max.x(), max.y(), midpoint.z()));
-	node.children[4] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), min.y(), midpoint.z()), Point(midpoint.x(), midpoint.y(), max.z()));
-	node.children[5] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), min.y(), midpoint.z()), Point(max.x(), midpoint.y(), max.z()));
-	node.children[6] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), midpoint.y(), midpoint.z()), Point(midpoint.x(), max.y(), max.z()));
-	node.children[7] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), midpoint.y(), midpoint.z()), Point(max.x(), max.y(), max.z()));
+	node.children[0] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), min.y(), min.z()), Point(midpoint.x(), midpoint.y(), midpoint.z()), 0);
+	node.children[1] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), min.y(), min.z()), Point(max.x(), midpoint.y(), midpoint.z()), 1);
+	node.children[2] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), midpoint.y(), min.z()), Point(midpoint.x(), max.y(), midpoint.z()), 2);
+	node.children[3] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), midpoint.y(), min.z()), Point(max.x(), max.y(), midpoint.z()), 3);
+	node.children[4] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), min.y(), midpoint.z()), Point(midpoint.x(), midpoint.y(), max.z()), 4);
+	node.children[5] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), min.y(), midpoint.z()), Point(max.x(), midpoint.y(), max.z()), 5);
+	node.children[6] = generateOctreeHelper(mesh, depth + 1, Point(min.x(), midpoint.y(), midpoint.z()), Point(midpoint.x(), max.y(), max.z()), 6);
+	node.children[7] = generateOctreeHelper(mesh, depth + 1, Point(midpoint.x(), midpoint.y(), midpoint.z()), Point(max.x(), max.y(), max.z()), 7);
 
 	return node;
 }
@@ -150,8 +155,8 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 OctreeNode generateOctree(const Polyhedron &mesh /*, max number of point, max depth...*/)
 {
 	// start by defining the bounding box of the mesh
-	Point min(std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
-	Point max(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
+	Point max(std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
+	Point min(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
 
 	for (auto v = mesh.vertices_begin(); v != mesh.vertices_end(); ++v)
 	{
@@ -159,7 +164,7 @@ OctreeNode generateOctree(const Polyhedron &mesh /*, max number of point, max de
 		max = Point(std::max(max.x(), v->point().x()), std::max(max.y(), v->point().y()), std::max(max.z(), v->point().z()));
 	}
 
-	return generateOctreeHelper(mesh, 0, min, max);
+	return generateOctreeHelper(mesh, 0, min, max, 0);
 }
 
 bool VertexInBBbox(AABB &box, Vertex_iterator &v)
@@ -167,7 +172,7 @@ bool VertexInBBbox(AABB &box, Vertex_iterator &v)
 
 	if (v->point().x() >= box.boxMin.x() && v->point().y() >= box.boxMin.y() && v->point().z() >= box.boxMin.z() && v->point().x() <= box.boxMax.x() && v->point().y() <= box.boxMax.y() && v->point().z() <= box.boxMax.z())
 	{
-		
+
 		return true;
 	}
 	else
@@ -265,26 +270,27 @@ void extractMeshFromOctree(const OctreeNode &root, const Polyhedron &mesh)
 	}
 }
 
-void writeJSONfromOctree(const OctreeNode &tree, std::ofstream &file, int i)
+void writeJSONfromOctree(const OctreeNode &tree, std::ofstream &file)
 {
+	int i = tree.nieme;
 	file << " { \"Profondeur \" : " << tree.profondeur << "," << std::endl;
 	file << "  \"vertex \" : " << tree.nb_vertices << "," << std::endl;
 	file << "  \"i \" : " << i << "," << std::endl;
 	file << "  \"enfant \" : [ " << std::endl;
 
-	if (tree.children.empty() == 0)
-		i = 0;
+	if (tree.profondeur == 0)
+		i = 7;
 
 	for (auto &t : tree.children)
 	{
 
-		writeJSONfromOctree(t, file, i);
-		i = (i >= 7 ? 0 : i + 1);
+		writeJSONfromOctree(t, file);
+		// i = (i >= 7 ? 0 : i + 1);
 	}
 
 	file << "]" << std::endl;
 	file << (i >= 7 ? "}" : "},") << std::endl;
-	// file << "  \"i \" : " << i << "," << std::endl;
+	//file << "  \"i \" : " << i << "," << std::endl;
 }
 
 void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::string filePath)
@@ -453,14 +459,13 @@ int main(int argc, char *argv[])
 
 	// extractMeshFromOctree(octree, mesh);
 
-	writeOFFfromOctree(octree, "test.off");
+	writeOFFfromOctree(octree, "Octree.off");
 
 	std::ofstream file;
-	file.open("test.json");
+	file.open("Octree.json");
 	file << "{" << std::endl;
 	file << "\"meshName\": \" " << argv[1] << "\",\"tree\": [ " << std::endl;
-	int i = 0;
-	writeJSONfromOctree(octree, file, i);
+	writeJSONfromOctree(octree, file);
 	file << "]}" << std::endl;
 
 	file.close();
