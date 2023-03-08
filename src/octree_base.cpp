@@ -63,7 +63,7 @@ void addOctreeLevel(OctreeNode &node)
 	// TODO...
 }
 
-constexpr int MAX_POINT = 35; // for testing purposes,
+constexpr int MAX_POINT = 50; // for testing purposes,
 constexpr int MAX_DEPTH = 5;  // it would be much better if these values were given to the function where the tree is being constructed.
 
 /// @brief add one vertex to an octree, by following strictly the rules of maximum amount of point in a node, and maximum depth of the tree
@@ -328,7 +328,7 @@ void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::stri
 	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
 }
 
-void ComputPointOctree(std::vector<Point> &vect, OctreeNode &tree, std::ofstream &file)
+void ComputPointOctree(std::vector<Point> &vect, OctreeNode &tree)
 {
 
 	if (tree.nb_vertices != 0)
@@ -346,7 +346,7 @@ void ComputPointOctree(std::vector<Point> &vect, OctreeNode &tree, std::ofstream
 	{
 		for (OctreeNode &child : tree.children)
 		{
-			ComputPointOctree(vect, child, file);
+			ComputPointOctree(vect, child);
 		}
 	}
 }
@@ -373,11 +373,7 @@ void writeOFFfromOctree(OctreeNode &tree, std::string filePath)
 
 	std::vector<Point> v_point;
 
-	std::cout << "init : " << v_point.size() << std::endl;
-
-	ComputPointOctree(v_point, tree, in_myfile);
-
-	std::cout << v_point.size() << std::endl;
+	ComputPointOctree(v_point, tree);
 
 	in_myfile << "OFF" << std::endl // "COFF" makes the file support color informations
 			  << v_point.size() << ' '
