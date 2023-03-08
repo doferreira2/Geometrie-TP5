@@ -390,6 +390,62 @@ void writeOFFfromOctree(OctreeNode &tree, std::string filePath)
 	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
 }
 
+
+
+
+
+
+
+
+void computSimplePoint(std::vector<Point> &vect, OctreeNode &tree)
+{
+	if (tree.nb_vertices != 0)
+	{
+		double x, y, z;
+		for (const auto &it : tree.vertices)
+		{
+			x += it->point().x();
+			y += it->point().y();
+			z += it->point().z();
+		}
+		vect.push_back(Point((x / tree.nb_vertices), (y / tree.nb_vertices), (z / tree.nb_vertices)));
+	}
+	else
+	{
+		for (OctreeNode &child : tree.children)
+		{
+			computSimplePoint(vect, child);
+		}
+	}
+}
+
+void simplifMesh(OctreeNode &tree, std::string filePath)
+{
+	std::ofstream in_myfile;
+	in_myfile.open(filePath);
+
+	CGAL::set_ascii_mode(in_myfile);
+
+	std::vector<Point> v_point;
+
+	computSimplePoint(v_point, tree);
+
+	Facet_iterator tes;
+
+	std::cout << v_point.size() << std::endl;
+
+	in_myfile << "OFF" << std::endl // "COFF" makes the file support color informations
+			  << v_point.size() << ' '
+			  << (6 * (v_point.size() / 8)) << " 0" << std::endl;
+	// nb of vertices, faces and edges (the latter is optional, thus 0)
+
+	std::copy(v_point.begin(), v_point.end(), std::ostream_iterator<Kernel::Point_3>(in_myfile, "\n"));
+	in_myfile.close();
+
+	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
+}
+
+
 // TC : jr sjui dorian, je mange des cartes arduinis au petit dej, maim miam les pcb vive l'eltricté, paul pinault le boss, je veux lui faire des choses
 
 int main(int argc, char *argv[])
