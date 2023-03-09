@@ -390,18 +390,15 @@ void writeOFFfromOctree(OctreeNode &tree, std::string filePath)
 	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
 }
 
+typedef std::map<OctreeNode *, int> node_int_map;
 
-
-
-
-
-
-
-void computSimplePoint(std::vector<Point> &vect, OctreeNode &tree)
+void computSimplePoint(std::vector<Point> &vect, node_int_map &ind, OctreeNode &tree)
 {
 	if (tree.nb_vertices != 0)
 	{
-		double x, y, z;
+		double x = 0;
+		double y = 0;
+		double z = 0;
 		for (const auto &it : tree.vertices)
 		{
 			x += it->point().x();
@@ -409,42 +406,64 @@ void computSimplePoint(std::vector<Point> &vect, OctreeNode &tree)
 			z += it->point().z();
 		}
 		vect.push_back(Point((x / tree.nb_vertices), (y / tree.nb_vertices), (z / tree.nb_vertices)));
+		ind[&tree] = (vect.size() - 1);
 	}
 	else
 	{
 		for (OctreeNode &child : tree.children)
 		{
-			computSimplePoint(vect, child);
+			computSimplePoint(vect, ind, child);
 		}
 	}
 }
 
-void simplifMesh(OctreeNode &tree, std::string filePath)
+void simplifMesh(OctreeNode &tree, Polyhedron &mesh, std::string filePath)
 {
 	std::ofstream in_myfile;
 	in_myfile.open(filePath);
 
+	std::ostringstream fil;
+
 	CGAL::set_ascii_mode(in_myfile);
 
 	std::vector<Point> v_point;
+	node_int_map iM_node;
 
-	computSimplePoint(v_point, tree);
+	computSimplePoint(v_point, iM_node, tree);
+	int nb_face = 0;
+	for (Facet_iterator f = mesh.facets_begin(); f != mesh.facets_end(); ++f)
+	{
+		// get the three vertices of the current face
+		Vertex_iterator v1 = f->halfedge()->vertex();
+		Vertex_iterator v2 = f->halfedge()->next()->vertex();
+		Vertex_iterator v3 = f->halfedge()->next()->next()->vertex();
 
-	Facet_iterator tes;
+		// get the nodes of the octree containing each vertex
+		OctreeNode *node1 = findVertexInOctree(tree, v1);
+		OctreeNode *node2 = findVertexInOctree(tree, v2);
+		OctreeNode *node3 = findVertexInOctree(tree, v3);
 
-	std::cout << v_point.size() << std::endl;
+		// check if all three vertices are in the same node
+		if (node1 != node2 && node1 != node3 && node2 != node3)
+		{
+			fil << "3 " << iM_node[node1] << " " << iM_node[node2] << " " << iM_node[node3] << " \n";
+			nb_face++;
+		}
+	}
 
 	in_myfile << "OFF" << std::endl // "COFF" makes the file support color informations
 			  << v_point.size() << ' '
-			  << (6 * (v_point.size() / 8)) << " 0" << std::endl;
+			  << nb_face << " 0" << std::endl;
 	// nb of vertices, faces and edges (the latter is optional, thus 0)
 
 	std::copy(v_point.begin(), v_point.end(), std::ostream_iterator<Kernel::Point_3>(in_myfile, "\n"));
+
+	in_myfile << fil.str();
+
 	in_myfile.close();
 
 	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
 }
-
 
 // TC : jr sjui dorian, je mange des cartes arduinis au petit dej, maim miam les pcb vive l'eltricté, paul pinault le boss, je veux lui faire des choses
 
@@ -498,8 +517,10 @@ int main(int argc, char *argv[])
 	file << "\"meshName\": \" " << argv[1] << "\",\"tree\": [ " << std::endl;
 	writeJSONfromOctree(octree, file);
 	file << "]}" << std::endl;
-
 	file.close();
 
+	simplifMesh(octree, mesh, "simple.off");
+
+	// simplifi(mesh, octree);
 	return 0;
 }
