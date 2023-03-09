@@ -14,9 +14,8 @@ typedef Polyhedron::Vertex_const_iterator Vertex_iterator;
 typedef Polyhedron::Halfedge_const_iterator Halfedge_iterator;
 typedef Polyhedron::Halfedge_around_facet_const_circulator Halfedge_facet_circulator;
 
-// typedef Polyhedron::Vertex_handle Vertex_handle;
-
 typedef Polyhedron::Point_3 Point;
+typedef std::vector<Vertex_iterator> Vertex_vector;
 
 typedef struct s_color
 {
@@ -41,8 +40,6 @@ struct AABB
 {
 	Point boxMin;
 	Point boxMax;
-
-	// TODO...
 };
 
 struct OctreeNode
@@ -51,32 +48,18 @@ struct OctreeNode
 	int profondeur;
 	int nieme;
 	AABB bbox;
-	std::vector<Vertex_iterator> vertices;
+	Vertex_vector vertices;
 	std::vector<OctreeNode> children;
 };
 
-/// @brief add a level to the given parent Octree node, by creating 8 children with 8 bounding box,
-/// sliced in the middle of the parent node
-/// @param node the octree node to which 8 children will be added
-void addOctreeLevel(OctreeNode &node)
-{
-	// TODO...
-}
+int MAX_POINT; // for testing purposes,
+int MAX_DEPTH; // it would be much better if these values were given to the function where the tree is being constructed.
 
-constexpr int MAX_POINT = 50; // for testing purposes,
-constexpr int MAX_DEPTH = 5;  // it would be much better if these values were given to the function where the tree is being constructed.
+typedef std::map<OctreeNode *, int> node_int_map;
 
-/// @brief add one vertex to an octree, by following strictly the rules of maximum amount of point in a node, and maximum depth of the tree
-/// @param root the root node of the tree
-/// @param vert the vertex that will be added, as a Vertex_handle
-void addVertexToOctree(OctreeNode &root, Polyhedron::Vertex_handle &vert)
+Vertex_vector getVerticesInBox(const Polyhedron &mesh, const Point &boxMin, const Point &boxMax)
 {
-	// TODO, this function can be recursive
-}
-
-std::vector<Vertex_iterator> getVerticesInBox(const Polyhedron &mesh, const Point &boxMin, const Point &boxMax)
-{
-	std::vector<Vertex_iterator> verticesInBox;
+	Vertex_vector verticesInBox;
 
 	for (Vertex_iterator v = mesh.vertices_begin(); v != mesh.vertices_end(); ++v)
 	{
@@ -89,7 +72,7 @@ std::vector<Vertex_iterator> getVerticesInBox(const Polyhedron &mesh, const Poin
 	return verticesInBox;
 }
 
-OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &min, const Point &max, int i)
+OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &min, const Point &max, const int i)
 {
 
 	OctreeNode node{};
@@ -107,7 +90,7 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 	}
 
 	// if the number of vertices in the box is less than or equal to max point, store the box as a leaf node
-	auto vertices = getVerticesInBox(mesh, min, max);
+	Vertex_vector vertices = getVerticesInBox(mesh, min, max);
 	if (vertices.size() <= MAX_POINT)
 	{
 		node.vertices = vertices;
@@ -116,7 +99,7 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 	}
 
 	// otherwise, subdivide the box into eight smaller boxes
-	Point midpoint = Point(((min.x() + max.x()) / 2.0), ((min.y() + max.y()) / 2.0), ((min.z() + max.z()) / 2.0));
+	const Point midpoint = Point(((min.x() + max.x()) / 2.0), ((min.y() + max.y()) / 2.0), ((min.z() + max.z()) / 2.0));
 
 	node.children.resize(8);
 
@@ -142,13 +125,13 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 /// i.e. a node may contain more vertices than MAX_POINT if the maximum depth is reached.
 /// @param mesh the mesh of interest
 /// @return an octree node that is the root of the octree for the given mesh
-OctreeNode generateOctree(const Polyhedron &mesh /*, max number of point, max depth...*/)
+OctreeNode generateOctree(const Polyhedron &mesh)
 {
 	// start by defining the bounding box of the mesh
 	Point min(std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
 	Point max(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest(), std::numeric_limits<double>::lowest());
 
-	for (auto v = mesh.vertices_begin(); v != mesh.vertices_end(); ++v)
+	for (Vertex_iterator v = mesh.vertices_begin(); v != mesh.vertices_end(); ++v)
 	{
 		min = Point(std::min(min.x(), v->point().x()), std::min(min.y(), v->point().y()), std::min(min.z(), v->point().z()));
 		max = Point(std::max(max.x(), v->point().x()), std::max(max.y(), v->point().y()), std::max(max.z(), v->point().z()));
@@ -157,7 +140,7 @@ OctreeNode generateOctree(const Polyhedron &mesh /*, max number of point, max de
 	return generateOctreeHelper(mesh, 0, min, max, 0);
 }
 
-bool VerticeInBox(AABB &box, Vertex_iterator &v)
+bool VerticeInBox(const AABB &box, const Vertex_iterator &v)
 {
 	if (v->point().x() >= box.boxMin.x() && v->point().y() >= box.boxMin.y() && v->point().z() >= box.boxMin.z() && v->point().x() <= box.boxMax.x() && v->point().y() <= box.boxMax.y() && v->point().z() <= box.boxMax.z())
 	{
@@ -169,7 +152,7 @@ bool VerticeInBox(AABB &box, Vertex_iterator &v)
 /// @brief find a specific vertex inside an octree (using a dichotomy algorithm)
 /// @param vh the vertex handle to look for
 /// @return the address of the node (not the prettiest way, feel free to handle it differently)
-OctreeNode *findVertexInOctree(OctreeNode &root, Vertex_iterator &vh)
+OctreeNode *findVertexInOctree(OctreeNode &root, const Vertex_iterator &vh)
 {
 
 	// Si le nœud courant ne contient pas la boîte englobante du sommet, il n'y a pas de point
@@ -226,32 +209,6 @@ void browseNodes(OctreeNode &root, std::function<void(const OctreeNode &)> func)
 	// if there are no vertices in the node we do nothing
 }
 
-void extractMeshFromOctree(const OctreeNode &root, const Polyhedron &mesh)
-{
-
-	std::vector<Point> vertices;
-	std::vector<std::vector<int>> faces;
-
-	// TODO: fill "vertices" and "faces" by going through the octree
-
-	std::ofstream out("octree_meshres.off");
-	out << "OFF" << std::endl;
-	out << vertices.size() << " " << faces.size() << " 0" << std::endl;
-	for (const auto &v : vertices)
-	{
-		out << v.x() << " " << v.y() << " " << v.z() << std::endl;
-	}
-	for (const auto &f : faces)
-	{
-		out << f.size() << " ";
-		for (auto fi : f)
-		{
-			out << fi << " ";
-		}
-		out << std::endl;
-	}
-}
-
 void writeJSONfromOctree(const OctreeNode &tree, std::ofstream &file)
 {
 	int i = tree.nieme;
@@ -263,7 +220,7 @@ void writeJSONfromOctree(const OctreeNode &tree, std::ofstream &file)
 	if (tree.profondeur == 0)
 		i = 7;
 
-	for (auto &t : tree.children)
+	for (const OctreeNode &t : tree.children)
 	{
 		writeJSONfromOctree(t, file);
 		// i = (i >= 7 ? 0 : i + 1);
@@ -290,13 +247,13 @@ void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::stri
 	{
 		in_myfile << v->point();
 
-		auto *noeud = findVertexInOctree(tree, v);
+		OctreeNode *noeud = findVertexInOctree(tree, v);
 
 		if (noeud != nullptr)
 		{
-			auto redValue = colorPalette[noeud->nieme].R / ((MAX_DEPTH + 1) - noeud->profondeur);
-			auto greenValue = colorPalette[noeud->nieme].V / ((MAX_DEPTH + 1) - noeud->profondeur);
-			auto blueValue = colorPalette[noeud->nieme].B / ((MAX_DEPTH + 1) - noeud->profondeur);
+			float redValue = colorPalette[noeud->nieme].R / ((MAX_DEPTH + 1) - noeud->profondeur);
+			float greenValue = colorPalette[noeud->nieme].V / ((MAX_DEPTH + 1) - noeud->profondeur);
+			float blueValue = colorPalette[noeud->nieme].B / ((MAX_DEPTH + 1) - noeud->profondeur);
 
 			in_myfile << " " << redValue << " " << greenValue << " " << blueValue;
 		}
@@ -328,7 +285,7 @@ void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::stri
 	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
 }
 
-void ComputPointOctree(std::vector<Point> &vect, OctreeNode &tree)
+void ComputPointOctree(std::vector<Point> &vect, const OctreeNode &tree)
 {
 
 	if (tree.nb_vertices != 0)
@@ -344,14 +301,14 @@ void ComputPointOctree(std::vector<Point> &vect, OctreeNode &tree)
 	}
 	else
 	{
-		for (OctreeNode &child : tree.children)
+		for (const OctreeNode &child : tree.children)
 		{
 			ComputPointOctree(vect, child);
 		}
 	}
 }
 
-void writeFaceHelper(int nbcube, std::ofstream &file)
+void writeFaceHelper(const int nbcube, std::ofstream &file)
 {
 	for (int i = 0; i < nbcube; i++)
 	{
@@ -364,7 +321,7 @@ void writeFaceHelper(int nbcube, std::ofstream &file)
 	}
 }
 
-void writeOFFfromOctree(OctreeNode &tree, std::string filePath)
+void writeOFFfromOctree(const OctreeNode &tree, std::string filePath)
 {
 	std::ofstream in_myfile;
 	in_myfile.open(filePath);
@@ -390,8 +347,6 @@ void writeOFFfromOctree(OctreeNode &tree, std::string filePath)
 	std::cout << "Le résultat a été exporté dans " << filePath << " !" << std::endl;
 }
 
-typedef std::map<OctreeNode *, int> node_int_map;
-
 void computSimplePoint(std::vector<Point> &vect, node_int_map &ind, OctreeNode &tree)
 {
 	if (tree.nb_vertices != 0)
@@ -399,7 +354,7 @@ void computSimplePoint(std::vector<Point> &vect, node_int_map &ind, OctreeNode &
 		double x = 0;
 		double y = 0;
 		double z = 0;
-		for (const auto &it : tree.vertices)
+		for (const Vertex_iterator &it : tree.vertices)
 		{
 			x += it->point().x();
 			y += it->point().y();
@@ -435,20 +390,36 @@ void simplifMesh(OctreeNode &tree, Polyhedron &mesh, std::string filePath)
 	{
 		// get the three vertices of the current face
 		Vertex_iterator v1 = f->halfedge()->vertex();
-		Vertex_iterator v2 = f->halfedge()->next()->vertex();
-		Vertex_iterator v3 = f->halfedge()->next()->next()->vertex();
-
-		// get the nodes of the octree containing each vertex
 		OctreeNode *node1 = findVertexInOctree(tree, v1);
+		// get the nodes of the octree containing each vertex
+
+		Vertex_iterator v2 = f->halfedge()->next()->vertex();
 		OctreeNode *node2 = findVertexInOctree(tree, v2);
+
+		Vertex_iterator v3 = f->halfedge()->next()->next()->vertex();
 		OctreeNode *node3 = findVertexInOctree(tree, v3);
 
-		// check if all three vertices are in the same node
-		if (node1 != node2 && node1 != node3 && node2 != node3)
+		if (f->is_quad())
 		{
-			fil << "3 " << iM_node[node1] << " " << iM_node[node2] << " " << iM_node[node3] << " \n";
-			nb_face++;
+			Vertex_iterator v4 = f->halfedge()->next()->next()->next()->vertex();
+			OctreeNode *node4 = findVertexInOctree(tree, v4);
+
+			if (node1 != node2 && node1 != node3 && node1 != node4 && node2 != node3 && node2 != node4 && node3 != node4)
+			{
+				fil << "4 " << iM_node[node1] << " " << iM_node[node2] << " " << iM_node[node3] << " " << iM_node[node4] << " \n";
+				nb_face++;
+			}
 		}
+		else
+		{
+			if (node1 != node2 && node1 != node3 && node2 != node3)
+			{
+				fil << "3 " << iM_node[node1] << " " << iM_node[node2] << " " << iM_node[node3] << " \n";
+				nb_face++;
+			}
+		}
+
+		// check if all three vertices are in diffrent node
 	}
 
 	in_myfile << "OFF" << std::endl // "COFF" makes the file support color informations
@@ -483,6 +454,30 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	MAX_DEPTH = (argc >= 3 ? atoi(argv[2]) : 10);
+	MAX_POINT = (argc >= 4 ? atoi(argv[3]) : 50);
+
+	OctreeNode octree = generateOctree(mesh);
+
+	std::ofstream file;
+	file.open("Octree.json");
+	file << "{" << std::endl;
+	file << "\"meshName\": \" " << argv[1] << "\",\"tree\": [ " << std::endl;
+	writeJSONfromOctree(octree, file);
+	file << "]}" << std::endl;
+	file.close();
+
+	writeCOFFfromMeshOctree(mesh, octree, "colorMesh.off");
+	writeOFFfromOctree(octree, "Octree.off");
+
+	simplifMesh(octree, mesh, "simple.off");
+
+	// simplifi(mesh, octree);
+	return 0;
+}
+
+/* BROUILLON
+
 	unsigned int nbVerts = 0;
 	for (Vertex_iterator i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
 	{
@@ -505,22 +500,5 @@ int main(int argc, char *argv[])
 	}
 	std::cout << "Nombre de faces: " << nbFaces << std::endl;
 
-	auto octree = generateOctree(mesh);
 
-	// extractMeshFromOctree(octree, mesh);
-	writeCOFFfromMeshOctree(mesh, octree, "colorMesh.off");
-	writeOFFfromOctree(octree, "Octree.off");
-
-	std::ofstream file;
-	file.open("Octree.json");
-	file << "{" << std::endl;
-	file << "\"meshName\": \" " << argv[1] << "\",\"tree\": [ " << std::endl;
-	writeJSONfromOctree(octree, file);
-	file << "]}" << std::endl;
-	file.close();
-
-	simplifMesh(octree, mesh, "simple.off");
-
-	// simplifi(mesh, octree);
-	return 0;
-}
+*/
