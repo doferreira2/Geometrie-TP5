@@ -44,7 +44,6 @@ struct AABB
 
 struct OctreeNode
 {
-	int nb_vertices;
 	int profondeur;
 	int nieme;
 	AABB bbox;
@@ -85,7 +84,6 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 	if (depth >= MAX_DEPTH)
 	{
 		node.vertices = getVerticesInBox(mesh, min, max);
-		node.nb_vertices = node.vertices.size();
 		return node;
 	}
 
@@ -94,7 +92,6 @@ OctreeNode generateOctreeHelper(const Polyhedron &mesh, int depth, const Point &
 	if (vertices.size() <= MAX_POINT)
 	{
 		node.vertices = vertices;
-		node.nb_vertices = node.vertices.size();
 		return node;
 	}
 
@@ -194,7 +191,7 @@ OctreeNode *findVertexInOctree(OctreeNode &root, const Vertex_iterator &vh)
 void browseNodes(OctreeNode &root, std::function<void(const OctreeNode &)> func)
 {
 	// if the nodes contains vertices, then "func" is called on the node
-	if (root.nb_vertices != 0)
+	if (root.vertices.size() != 0)
 	{
 		func(root);
 		return;
@@ -213,7 +210,7 @@ void writeJSONfromOctree(const OctreeNode &tree, std::ofstream &file)
 {
 	int i = tree.nieme;
 	file << " { \"Profondeur \" : " << tree.profondeur << "," << std::endl;
-	file << "  \"vertex \" : " << tree.nb_vertices << "," << std::endl;
+	file << "  \"vertex \" : " << tree.vertices.size() << "," << std::endl;
 	file << "  \"i \" : " << i << "," << std::endl;
 	file << "  \"enfant \" : [ " << std::endl;
 
@@ -288,7 +285,7 @@ void writeCOFFfromMeshOctree(const Polyhedron &mesh, OctreeNode &tree, std::stri
 void ComputPointOctree(std::vector<Point> &vect, const OctreeNode &tree)
 {
 
-	if (tree.nb_vertices != 0)
+	if (tree.vertices.size() != 0)
 	{
 		vect.push_back(Point(tree.bbox.boxMax.x(), tree.bbox.boxMax.y(), tree.bbox.boxMax.z()));
 		vect.push_back(Point(tree.bbox.boxMax.x(), tree.bbox.boxMax.y(), tree.bbox.boxMin.z()));
@@ -337,8 +334,7 @@ void writeOFFfromOctree(const OctreeNode &tree, std::string filePath)
 			  << (6 * (v_point.size() / 8)) << " 0" << std::endl;
 	// nb of vertices, faces and edges (the latter is optional, thus 0)
 
-	std::copy(v_point.begin(), v_point.end(),
-			  std::ostream_iterator<Kernel::Point_3>(in_myfile, "\n"));
+	std::copy(v_point.begin(), v_point.end(), std::ostream_iterator<Kernel::Point_3>(in_myfile, "\n"));
 
 	writeFaceHelper((v_point.size() / 8), in_myfile);
 
@@ -349,7 +345,7 @@ void writeOFFfromOctree(const OctreeNode &tree, std::string filePath)
 
 void computSimplePoint(std::vector<Point> &vect, node_int_map &ind, OctreeNode &tree)
 {
-	if (tree.nb_vertices != 0)
+	if (tree.vertices.size() != 0)
 	{
 		double x = 0;
 		double y = 0;
@@ -360,7 +356,7 @@ void computSimplePoint(std::vector<Point> &vect, node_int_map &ind, OctreeNode &
 			y += it->point().y();
 			z += it->point().z();
 		}
-		vect.push_back(Point((x / tree.nb_vertices), (y / tree.nb_vertices), (z / tree.nb_vertices)));
+		vect.push_back(Point((x / tree.vertices.size()), (y / tree.vertices.size()), (z / tree.vertices.size())));
 		ind[&tree] = (vect.size() - 1);
 	}
 	else
@@ -427,7 +423,8 @@ void simplifMesh(OctreeNode &tree, Polyhedron &mesh, std::string filePath)
 			  << nb_face << " 0" << std::endl;
 	// nb of vertices, faces and edges (the latter is optional, thus 0)
 
-	std::copy(v_point.begin(), v_point.end(), std::ostream_iterator<Kernel::Point_3>(in_myfile, "\n"));
+	int i = 0;
+	std::copy(v_point.begin(), v_point.end(), std::ostream_iterator<Kernel::Point_3>(in_myfile, ("\n")));
 
 	in_myfile << fil.str();
 
@@ -453,6 +450,13 @@ int main(int argc, char *argv[])
 		std::cerr << "Le fichier donné n'est pas un fichier off valide." << std::endl;
 		return 1;
 	}
+
+	unsigned int nbVerts = 0;
+	for (Vertex_iterator i = mesh.vertices_begin(); i != mesh.vertices_end(); ++i)
+	{
+		++nbVerts;
+	}
+	std::cout << "Nombre de sommets: " << nbVerts << std::endl;
 
 	MAX_DEPTH = (argc >= 3 ? atoi(argv[2]) : 10);
 	MAX_POINT = (argc >= 4 ? atoi(argv[3]) : 50);
